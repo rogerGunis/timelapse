@@ -14,7 +14,7 @@ fi
 CAMERA="${CAMERA:-0}"
 
 SCRIPT_NAME="$(basename "$0")"
-PID_FILE="/tmp/${SCRIPT_NAME%.sh}.pid"
+PID_FILE="$HOME/${SCRIPT_NAME%.sh}.pid"
 LOG_FILE="${HOME}/logs/timelapse.log"
 
 DATE="$(date +'%Y%m%d_%H%M%S')"
