@@ -111,10 +111,8 @@ refresh_status_files() {
 
   upload_file ip.txt ""
   upload_file battery.txt ""
-  cat "${LOG_FILE}" > "log_copy.txt"
-  upload_file "log_copy.txt" ""
   upload_file "wifi.txt" ""
-  rm -f ip.txt battery.txt wifi.txt log_copy.txt
+  rm -f ip.txt battery.txt wifi.txt
 }
 
 main() {
