@@ -94,6 +94,8 @@ upload_file() {
   local target_dir="$2"
   echo "Uploading ${file}"
   curl "${CURL_BASE_OPTS[@]}" -T "${file}" "ftp://${FTP_SERVER}/${target_dir}/${file}"
+  # only on non txt files
+  [[ "${file}" == *.txt ]] && return
   check_success_on_file_size "${file}" "${target_dir}"
 }
 
