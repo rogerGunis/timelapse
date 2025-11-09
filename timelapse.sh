@@ -1,4 +1,5 @@
 ﻿#!/data/data/com.termux/files/usr/bin/bash
+
 set -euo pipefail
 
 ENV_FIle=".timelapse.env"
@@ -21,7 +22,7 @@ DATE="$(date +'%Y%m%d_%H%M%S')"
 DIR="$(date +'%Y%m')"
 NAME="${DATE}.jpeg"
 
-CURL_BASE_OPTS=(-C - -4 --retry 30 --retry-delay 10 --max-time 1000 --limit-rate 64k --user "${FTP_USER}:${FTP_PASS}")
+CURL_BASE_OPTS=(-C - -s -4 --retry 30 --retry-delay 10 --max-time 1000 --limit-rate 64k --user "${FTP_USER}:${FTP_PASS}")
 
 cleanup() {
   rm -f "${NAME}" ip.txt battery.txt 2>/dev/null || true
