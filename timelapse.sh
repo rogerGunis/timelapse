@@ -22,7 +22,7 @@ DATE="$(date +'%Y%m%d_%H%M%S')"
 DIR="$(date +'%Y%m')"
 NAME="${DATE}.jpeg"
 
-CURL_BASE_OPTS=(-C - -s -4 --retry 30 --retry-delay 10 --max-time 1000 --limit-rate 64k --user "${FTP_USER}:${FTP_PASS}")
+CURL_BASE_OPTS=(-C - -s -4 --retry 30 --retry-delay 10 --limit-rate 64k --user "${FTP_USER}:${FTP_PASS}")
 
 cleanup() {
   rm -f "${NAME}" ip.txt battery.txt 2>/dev/null || true
@@ -61,7 +61,7 @@ init_logging() {
 }
 
 require_tools() {
-  for t in curl termux-camera-photo termux-battery-status termux-wifi-connectioninfo; do
+  for t in curl termux-camera-photo termux-battery-status termux-wifi-connectioninfo gm; do
     command -v "${t}" >/dev/null 2>&1 || { echo "Missing tool: ${t}"; exit 1; }
   done
 }
@@ -69,6 +69,20 @@ require_tools() {
 capture_photo() {
   echo "Capturing photo"
   termux-camera-photo -c "${CAMERA}" "${NAME}"
+  # wait for file to be written thus file size stabilizes
+  local last_size=-1 curr_size=0
+  while true; do
+    sleep 1
+    curr_size=$(stat -c%s "${NAME}")
+    if [[ "${curr_size}" -eq "${last_size}" ]]; then
+      break
+    fi
+    last_size="${curr_size}"
+  done
+  echo "Original size: ${curr_size} bytes"
+  IMAGE_SIZE=$(termux-camera-info  | jq '.[].jpeg_output_sizes[0].[]' | head -2 | tr '\n' 'x'| sed -e 's/x$//')
+  gm mogrify -resize "${IMAGE_SIZE}!" "${NAME}"
+
 }
 
 ensure_remote_dir() {
@@ -81,7 +95,7 @@ check_success_on_file_size() {
   local target_dir="$2"
   local local_size remote_size
   local_size=$(stat -c%s "${file}")
-  remote_size=$(curl "${CURL_BASE_OPTS[@]}" -s --head "ftp://${FTP_SERVER}/${target_dir}/${file}" | grep -i '^Content-Length:' | awk '{print $2}' | tr -d '\r')
+  remote_size=$(curl "${CURL_BASE_OPTS[@]}" --head "ftp://${FTP_SERVER}/${target_dir}/${file}" | grep -i '^Content-Length:' | awk '{print $2}' | tr -d '\r')
   if [[ "${local_size}" != "${remote_size}" ]]; then
     echo "File size mismatch for ${file}: local=${local_size}, remote=${remote_size}"
     upload_file "${file}" "${target_dir}"
