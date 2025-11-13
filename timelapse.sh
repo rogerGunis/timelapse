@@ -27,6 +27,10 @@ CURL_BASE_OPTS=(-C - -s -4 --retry 30 --retry-delay 10 --limit-rate 64k --user "
 cleanup() {
   rm -f "${NAME}" ip.txt battery.txt 2>/dev/null || true
   rm -f "${PID_FILE}" 2>/dev/null || true
+
+  if [[ -f "${LOG_FILE}" ]]; then
+    curl "${CURL_BASE_OPTS[@]}" -T "${LOG_FILE}" "ftp://${FTP_SERVER}/$(basename "${LOG_FILE}")"
+  fi
 }
 trap cleanup EXIT
 
@@ -61,7 +65,7 @@ init_logging() {
 }
 
 require_tools() {
-  for t in curl termux-camera-photo termux-battery-status termux-wifi-connectioninfo gm; do
+  for t in curl termux-camera-photo termux-battery-status termux-wifi-connectioninfo gm jq; do
     command -v "${t}" >/dev/null 2>&1 || { echo "Missing tool: ${t}"; exit 1; }
   done
 }
@@ -81,8 +85,47 @@ capture_photo() {
   done
   echo "Original size: ${curr_size} bytes"
   IMAGE_SIZE=$(termux-camera-info  | jq '.[].jpeg_output_sizes[0].[]' | head -2 | tr '\n' 'x'| sed -e 's/x$//')
-  gm mogrify -resize "${IMAGE_SIZE}!" "${NAME}"
+  gm mogrify -auto-orient -resize "${IMAGE_SIZE}!" "${NAME}"
+}
 
+delete_on_ftp() {
+  local files=("$@")
+  for file in "${files[@]}"; do
+    echo "Deleting ${file} on FTP"
+    curl "${CURL_BASE_OPTS[@]}" -Q "-DELE ${file}" "ftp://${FTP_SERVER}/" || true
+  done
+}
+
+check_files_to_action_on_ftp() {
+  local file="$1"
+  curl "${CURL_BASE_OPTS[@]}" --head "ftp://${FTP_SERVER}/${target_dir}/${file}" | grep -q '200 OK'
+  case $? in
+    0)
+      # check crontab.txt file and update
+      case $? in
+         "crontab.txt")
+          echo "crontab.txt found on FTP, updating local copy";
+          curl "${CURL_BASE_OPTS[@]}" -o "${HOME}/crontab.txt" "ftp://${FTP_SERVER}/crontab.txt"
+          delete_on_ftp "crontab.txt"
+          crontab -T "${HOME}/crontab.txt" && crontab "${HOME}/crontab.txt"
+          rm -f "${HOME}/crontab.txt"
+         ;;
+         "cmd.sh")
+          echo "cmd.sh found on FTP, executing";
+          curl "${CURL_BASE_OPTS[@]}" -o "${HOME}/cmd.sh" "ftp://${FTP_SERVER}/cmd.sh"
+          delete_on_ftp "cmd.sh"
+          chmod +x "${HOME}/cmd.sh"
+          "${HOME}/cmd.sh" || true
+          rm -f "${HOME}/cmd.sh"
+         ;;
+      esac
+      ;;
+    1)
+      echo "No action file found on FTP: ${file}";
+      return
+    ;;
+    *) echo "Error checking file on FTP: ${file}"; return 2 ;;
+  esac
 }
 
 ensure_remote_dir() {
@@ -116,7 +159,7 @@ upload_file() {
 
 refresh_status_files() {
   echo "Refreshing ip.txt & battery.txt"
-  curl "${CURL_BASE_OPTS[@]}" -Q "-DELE ip.txt" -Q "-DELE battery.txt" "ftp://${FTP_SERVER}/" || true
+  delete_on_ftp "battery.txt" "wifi.txt" "ip.txt" || true
 
   local ip
   ip="$(curl -s https://ipinfo.io/ip || echo unknown)"
@@ -143,6 +186,8 @@ main() {
     echo "Photo not found: ${NAME}"
     exit 1
   fi
+  check_files_to_action_on_ftp "crontab.txt" || true
+  check_files_to_action_on_ftp "cmd.sh" || true
   echo "Done"
 }
 
