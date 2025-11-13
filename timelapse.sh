@@ -98,7 +98,7 @@ delete_on_ftp() {
 
 check_files_to_action_on_ftp() {
   local file="$1"
-  curl "${CURL_BASE_OPTS[@]}" --head "ftp://${FTP_SERVER}/${target_dir}/${file}" | grep -q '200 OK'
+  curl "${CURL_BASE_OPTS[@]}" --head "ftp://${FTP_SERVER}/${file}" | grep -q '200 OK'
   case $? in
     0)
       # check crontab.txt file and update
