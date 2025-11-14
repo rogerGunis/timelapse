@@ -92,17 +92,18 @@ delete_on_ftp() {
   local files=("$@")
   for file in "${files[@]}"; do
     echo "Deleting ${file} on FTP"
-    curl "${CURL_BASE_OPTS[@]}" -Q "-DELE ${file}" "ftp://${FTP_SERVER}/" || true
+    curl "${CURL_BASE_OPTS[@]}" -Q "-DELE ${file}" "ftp://${FTP_SERVER}/" 2>&1>/dev/null || true
   done
 }
 
 check_files_to_action_on_ftp() {
   local file="$1"
-  curl "${CURL_BASE_OPTS[@]}" --head "ftp://${FTP_SERVER}/${file}" | grep -q '200 OK'
-  case $? in
+  local -r SERVER_RESPONSE=350
+  curl -o /dev/null -s -w "%{http_code}\n" "${CURL_BASE_OPTS[@]}" --head "ftp://${FTP_SERVER}/${file}" | grep -q "${SERVER_RESPONSE}" && STATUS=0 || STATUS=$?
+  case ${STATUS} in
     0)
       # check crontab.txt file and update
-      case $? in
+      case "${file}" in
          "crontab.txt")
           echo "crontab.txt found on FTP, updating local copy";
           curl "${CURL_BASE_OPTS[@]}" -o "${HOME}/crontab.txt" "ftp://${FTP_SERVER}/crontab.txt"
@@ -192,3 +193,5 @@ main() {
 }
 
 main
+
+
